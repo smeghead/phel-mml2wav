@@ -1,0 +1,34 @@
+{
+  "name": "smeghead/mml2pcm",
+  "description": "Converts MML (Music Macro Language) to PCM",
+  "keywords": [
+    "phel",
+    "MML",
+    "PCM"
+  ],
+  "homepage": "https://phel-lang.org/",
+  "license": "MIT",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "phel-lang/phel-lang": "^0.16"
+  },
+  "require-dev": {
+    "symfony/var-dumper": "^6.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "PhelGenerated\\": "src/PhelGenerated"
+    }
+  },
+  "scripts": {
+    "dev": "vendor/bin/phel run src/main.phel",
+    "build": "vendor/bin/phel build --no-cache",
+    "format": "vendor/bin/phel format",
+    "test": "vendor/bin/phel test",
+    "repl": [
+      "Composer\\Config::disableProcessTimeout",
+      "vendor/bin/phel repl"
+    ]
+  }
+}

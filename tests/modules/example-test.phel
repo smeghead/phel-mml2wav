@@ -1,0 +1,6 @@
+(ns mml2pcm\test\modules\example-test
+  (:require mml2pcm\modules\example)
+  (:require phel\test :refer [deftest is]))
+
+(deftest test-example
+  (is (= 0 0)))

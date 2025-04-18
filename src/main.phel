@@ -1,0 +1,4 @@
+(ns mml2pcm\main)
+
+(when-not *build-mode*
+  (println "Hello, world."))
