@@ -1,3 +1,3 @@
-# phel-mml2pcm
+# phel-mml2wav
 
-Converts MML (Music Macro Language) to PCM
+Converts MML (Music Macro Language) to WAV

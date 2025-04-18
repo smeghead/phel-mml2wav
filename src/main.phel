@@ -1,4 +1,4 @@
-(ns mml2pcm\main)
+(ns mml2wav\main)
 
 (when-not *build-mode*
   (println "Hello, world."))

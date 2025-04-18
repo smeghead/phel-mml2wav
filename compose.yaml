@@ -4,6 +4,6 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    working_dir: /usr/src
+    working_dir: /app
     volumes:
-      - ./:/usr/src
+      - ./:/app

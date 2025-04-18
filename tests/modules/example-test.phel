@@ -1,5 +1,5 @@
-(ns mml2pcm\test\modules\example-test
-  (:require mml2pcm\modules\example)
+(ns mml2wav\test\modules\example-test
+  (:require mml2wav\modules\example)
   (:require phel\test :refer [deftest is]))
 
 (deftest test-example

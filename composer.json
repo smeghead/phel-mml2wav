@@ -1,10 +1,10 @@
 {
-  "name": "smeghead/mml2pcm",
-  "description": "Converts MML (Music Macro Language) to PCM",
+  "name": "smeghead/mml2wav",
+  "description": "Converts MML (Music Macro Language) to WAV",
   "keywords": [
     "phel",
     "MML",
-    "PCM"
+    "WAV"
   ],
   "homepage": "https://phel-lang.org/",
   "license": "MIT",
