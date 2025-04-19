@@ -1,0 +1,86 @@
+(ns mml2wav\modules\waveform
+  (:require mml2wav\modules\parser :as parser))
+
+# 定数設定
+(def SAMPLE-RATE 44100)        # サンプリングレート（Hz）
+(def MAX-AMPLITUDE 32767)      # 16-bit PCM の最大振幅
+(def FADE-SAMPLES 100)         # フェードイン/アウトのサンプル数
+
+# Sin 波を生成する関数
+(defn sin [x]
+  "正弦波の値を計算する (x は角度をラジアンで表す)"
+  (php/sin x))
+
+# 特定の周波数と長さで波形を生成
+(defn generate-wave [frequency duration-sec amplitude]
+  "指定された周波数と長さの波形データ配列を生成"
+  (let [sample-count (php/intval (php/ceil (* duration-sec SAMPLE-RATE)))
+        angular-frequency (* 2 php/M_PI frequency)]
+    
+    # 各サンプルの値を計算
+    (loop [i 0
+           acc []]
+      (if (>= i sample-count)
+        acc
+        # Sin波を生成（時間 t における値）
+        (let [t (/ i SAMPLE-RATE)
+              sample-value (* amplitude (sin (* angular-frequency t)))]
+          
+          # フェードイン/アウト処理
+          (let [fade-factor 1.0
+                # フェードイン
+                fade-factor (if (< i FADE-SAMPLES)
+                              (* fade-factor (/ i FADE-SAMPLES))
+                              fade-factor)
+                # フェードアウト
+                fade-factor (if (> i (- sample-count FADE-SAMPLES))
+                              (* fade-factor (/ (- sample-count i) FADE-SAMPLES))
+                              fade-factor)
+                # フェード適用後の値
+                final-value (* sample-value fade-factor)]
+            
+            # 配列に追加
+            (recur (inc i) (push acc final-value))))))))
+        
+
+# 音符から波形データを生成
+(defn note-to-wave [duration]
+  "1つの音符または休符から波形データを生成"
+  (let [length (duration :length)
+        note (duration :note)]
+    
+    (if (nil? note)
+      # 休符の場合は無音波形を返す
+      (let [sample-count (php/intval (php/ceil (* length SAMPLE-RATE)))
+            zeros (php/array_fill 0 sample-count 0.0)]
+        zeros)
+        
+      # 音符の場合は周波数を計算して波形を生成
+      (let [frequency (parser/note-to-frequency note)]
+        (generate-wave frequency length 0.8)))))  # 振幅は0.8（最大値の80%）に設定
+
+# 音楽シーケンス全体から波形を生成
+(defn generate-waveform [music-seq]
+  "音楽シーケンス全体から波形データ配列を生成"
+  (let [waves (for [duration :in (music-seq :durations)]
+                (note-to-wave duration))]
+    
+    # 全波形を連結して1つの波形にする
+    (apply concat waves)))
+
+# 波形を正規化して-1.0〜1.0の範囲に収める
+(defn normalize-waveform [waveform]
+  "波形データを正規化して-1.0〜1.0の範囲に収める"
+  # 最大振幅を計算
+  (let [max-amp (apply max (map php/abs waveform))
+        max-amp (if (zero? max-amp) 0.0000001 max-amp)] # ゼロ除算を避けるため小さい値から開始
+
+    # 最大振幅で正規化（-1.0〜1.0の範囲）
+    (for [sample :in waveform]
+      (/ sample max-amp))))
+
+# 音楽シーケンスから正規化された波形を生成（メインの関数）
+(defn generate [music-seq]
+  "音楽シーケンスから正規化された波形を生成する（-1.0〜1.0の範囲）"
+  (let [raw-waveform (generate-waveform music-seq)]
+    (normalize-waveform raw-waveform)))

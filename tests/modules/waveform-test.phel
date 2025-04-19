@@ -1,0 +1,130 @@
+(ns mml2wav\tests\waveform-test
+
+  (:require phel\test :refer [deftest is])
+  (:require mml2wav\modules\waveform :as wf)
+  (:require mml2wav\modules\parser :as parser))
+
+# 定数
+(def EPSILON 0.00001)  # 浮動小数点数比較の許容誤差
+
+# 浮動小数点数の近似等価性を調べる関数
+(defn approximately-equal? [a b]
+  "2つの浮動小数点数が許容誤差内で等しいかどうかを確認"
+  (let [a (or a 0)
+        b (or b 0)]
+    (< (php/abs (- a b)) EPSILON)))
+
+# 正弦波生成のテスト
+(deftest sin-wave-generation
+  "基本的な正弦波生成をテスト"
+  # 0度（0ラジアン）のsinは0
+  (is (approximately-equal? (wf/sin 0) 0.0))
+  
+  # 90度（π/2ラジアン）のsinは1
+  (is (approximately-equal? (wf/sin (/ php/M_PI 2)) 1.0))
+  
+  # 180度（πラジアン）のsinは0
+  (is (approximately-equal? (wf/sin php/M_PI) 0.0))
+  
+  # 270度（3π/2ラジアン）のsinは-1
+  (is (approximately-equal? (wf/sin (* 1.5 php/M_PI)) -1.0)))
+
+# 特定の周波数と長さでの波形生成をテスト
+(deftest wave-generation
+  "特定の周波数と長さでの波形生成をテスト"
+  (let [# 1Hzの波形を1秒間生成 (1周期)
+        wave (wf/generate-wave 1.0 1.0 1.0)
+        # サンプル数を確認
+        sample-count (count wave)]
+    
+    # サンプル数はサンプルレートと一致するはず
+    (is (= sample-count wf/SAMPLE-RATE))
+    
+    # 最初のサンプルは0に近いはず（フェードインの影響あり）
+    (is (approximately-equal? (wave 0) 0.0))
+    
+    # 1/4周期（π/2）の位置にあるサンプルは1に近いはず
+    (let [quarter-index (php/intval (/ wf/SAMPLE-RATE 4))
+          quarter-sample (wave quarter-index)]
+      (is (> quarter-sample 0.9)))  # フェード処理で完全に1.0にはならない
+    
+    # 1/2周期（π）の位置にあるサンプルは0に近いはず
+    (let [half-index (php/intval (/ wf/SAMPLE-RATE 2))
+          half-sample (wave half-index)]
+      (is (approximately-equal? half-sample 0.0)))))
+
+# 音符から波形への変換をテスト
+(deftest note-to-wave-test
+  "音符から波形への変換をテスト"
+  # A4音符（440Hz）の0.5秒間の波形を生成
+  (let [note (parser/create-note 4 :a)
+        duration (parser/duration 0.5 note)
+        wave (wf/note-to-wave duration)
+        # サンプル数を確認
+        sample-count (php/count wave)]
+    
+    # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
+    (is (approximately-equal? sample-count (* wf/SAMPLE-RATE 0.5)))
+    
+    # 波形の中間点は0ではない（音が鳴っている）
+    (let [mid-index (php/intval (/ sample-count 2))
+          mid-sample (wave mid-index)]
+      (is (not (approximately-equal? mid-sample 0.0))))))
+
+# 休符の波形生成をテスト
+(deftest rest-to-wave-test
+  "休符から波形への変換をテスト"
+  # 0.5秒間の休符
+  (let [duration (parser/duration 0.5 nil)
+        wave (wf/note-to-wave duration)
+        # サンプル数を確認
+        sample-count (php/count wave)]
+    
+    # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
+    (is (approximately-equal? sample-count (* wf/SAMPLE-RATE 0.5)))
+    
+    # すべてのサンプルが0（無音）であることを確認
+    (foreach [sample wave]
+      (is (approximately-equal? sample 0.0)))))
+
+# 波形の正規化をテスト
+(deftest waveform-normalization
+  "波形の正規化処理をテスト"
+  (let [# サンプル値の範囲がバラバラな波形を作成
+        raw-wave [0.5 -1.0 2.0 -1.5 1.0]
+        # 正規化
+        normalized (wf/normalize-waveform raw-wave)]
+    
+    # 正規化後の最大振幅は1.0
+    (let [max-amp (apply max (map php/abs normalized))]
+      (is (approximately-equal? max-amp 1.0)))
+    
+    # 元の相対的な比率が保たれていることを確認
+    (is (approximately-equal? (/ (normalized 0) (normalized 4)) 0.5))  # 0.5/1.0 = 0.5
+    (is (approximately-equal? (/ (php/abs (normalized 1)) (php/abs (normalized 3))) (/ 1.0 1.5)))  # 1.0/1.5 = 2/3
+  ))
+
+# 音楽シーケンスからの波形生成をテスト
+(deftest music-sequence-to-waveform
+  "音楽シーケンス全体から波形を生成するテスト"
+  (let [# 簡単な音楽シーケンスを作成
+        duration1 (parser/create-note-duration 0.25 4 :c)  # C4を0.25秒
+        duration2 (parser/create-rest-duration 0.25)       # 0.25秒の休符
+        duration3 (parser/create-note-duration 0.25 4 :g)  # G4を0.25秒
+        music-seq (parser/music-sequence 120 [duration1 duration2 duration3])
+        
+        # 波形を生成して正規化
+        waveform (wf/generate music-seq)]
+    
+    # 生成された波形のサンプル数を確認
+    (let [expected-samples (* wf/SAMPLE-RATE (+ 0.25 0.25 0.25))  # 合計0.75秒
+          actual-samples (php/count waveform)]
+      (is (approximately-equal? actual-samples expected-samples)))
+    
+    # 正規化された波形の最大振幅は1.0以下
+    (let [max-amp 0.0]
+      (foreach [sample waveform]
+        (let [abs-sample (php/abs sample)]
+          (when (> abs-sample max-amp)
+            (set max-amp abs-sample))))
+      (is (<= max-amp 1.0)))))
