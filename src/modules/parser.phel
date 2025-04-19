@@ -3,7 +3,7 @@
 # 音符データ構造体（オクターブと音名の組み合わせ）
 (defstruct note [
   octave  # オクターブ値 (0-8)
-  name    # 音名 (:c, :c#, :d, :d#, :e, :f, :f#, :g, :g#, :a, :a#, :b)
+  name    # 音名 (:c, :c+, :d, :d+, :e, :f, :f+, :g, :g+, :a, :a+, :b)
 ])
 
 # 演奏される期間の構造体
@@ -23,11 +23,6 @@
   "特定のオクターブと音名を持つ音符を作成"
   (note octave name))
 
-# 休符を含む期間を作成
-(defn create-duration [length note-or-nil]
-  "音符または休符を含む期間を作成"
-  (duration length note-or-nil))
-
 # 音符を含む期間を作成するショートカット
 (defn create-note-duration [length octave name]
   "指定された音符を持つ期間を作成"
@@ -37,16 +32,6 @@
 (defn create-rest-duration [length]
   "休符（無音）期間を作成"
   (duration length nil))
-
-# 新しい空の音楽シーケンスを作成
-(defn create-music-sequence [tempo]
-  "指定されたテンポで空のシーケンスを作成"
-  (music-sequence tempo []))
-
-# 音楽シーケンスに期間を追加
-(defn add-duration [sequence duration]
-  "シーケンスに新しい期間を追加"
-  (put sequence :durations (push (get sequence :durations) duration)))
 
 # 周波数計算のための定数
 (def FREQ-A4 440.0)  # A4 (オクターブ4のA音) の周波数（Hz）
@@ -67,15 +52,31 @@
   :b  11  # シ
 })
 
+# MMLの音名をPhelの内部キーワードに変換するマップ
+(def NOTES-MAP {
+  "c" :c
+  "c+" :c+
+  "d" :d
+  "d+" :d+
+  "e" :e
+  "f" :f
+  "f+" :f+
+  "g" :g
+  "g+" :g+
+  "a" :a
+  "a+" :a+
+  "b" :b
+})
+
 # 音符から周波数を計算
 (defn note-to-frequency [note]
   "特定の音符の周波数を計算（A4=440Hzを基準）"
   (if (nil? note)
     0.0  # 休符の場合は0Hz
-    (let [octave (get note :octave)
-          name (get note :name)
+    (let [octave (note :octave)
+          name (note :name)
           # A4からのセミトーン数を計算
-          semitones (+ (- (* 12 (- octave 4)) 9) (get SEMITONES name))]
+          semitones (+ (- (* 12 (- octave 4)) 9) (SEMITONES name))]
       # 周波数計算: f = 440 * 2^(n/12) ただしnはA4からのセミトーン数
       (* FREQ-A4 (php/pow 2 (/ semitones 12))))))
 
@@ -87,3 +88,195 @@
         # 付点があれば1.5倍
         note-duration (if dot (* note-duration 1.5) note-duration)]
     (/ note-duration beats-per-second)))
+
+# MML文字列を正規化する（小文字化と空白削除）
+(defn normalize-mml [mml-string]
+  "MML文字列を正規化する（小文字化と空白削除）"
+  (php/strtolower (php/preg_replace "/\\s+/" "" mml-string)))
+
+(defn collect-digits [s start-idx]
+  (let [len (php/strlen s)]
+    (loop [idx start-idx
+           acc ""]
+      (if (>= idx len)
+        # 文字列の終端に達した場合
+        [acc idx]
+        (let [char (php/substr s idx 1)]
+          (if (= (php/preg_match "/[0-9]/" char) 0)
+            # 数字でなければ終了
+            [acc idx]
+            # 数字ならaccに追加して次の文字へ
+            (recur (inc idx) (str acc char))))))))
+
+# 文字列から数値部分を抽出するヘルパー関数
+(defn extract-number [s start-index]
+  "文字列から数値部分を抽出し、[抽出した数値文字列, 次の位置]を返す"
+  (let [[digits end-idx] (collect-digits s start-index)]
+    (if (= digits "")
+      # 数字が見つからなかった場合
+      [nil start-index]
+      # 数字が見つかった場合
+      [digits end-idx])))
+
+# テンポ設定を処理
+(defn process-tempo [state mml-str index]
+  "テンポ設定（t120など）を処理し、[新しい状態, 次の位置]を返す"
+  (let [[tempo-str next-idx] (extract-number mml-str (+ index 1))]
+    (if (nil? tempo-str)
+      # テンポ数値が見つからない場合は状態を変えず次の文字へ
+      [state (+ index 1)]
+      # テンポを更新して次の文字へ
+      [(put state :tempo (php/intval tempo-str)) next-idx])))
+
+# オクターブ設定を処理
+(defn process-octave [state mml-str index]
+  "オクターブ設定（o4など）を処理し、[新しい状態, 次の位置]を返す"
+  (let [[octave-str next-idx] (extract-number mml-str (+ index 1))]
+    (if (nil? octave-str)
+      [state (+ index 1)]
+      [(put state :current-octave (php/intval octave-str)) next-idx])))
+
+# オクターブアップを処理
+(defn process-octave-up [state index]
+  "オクターブアップ（>）を処理し、[新しい状態, 次の位置]を返す"
+  [(put state :current-octave (min 8 (+ (state :current-octave) 1))) (+ index 1)])
+
+# オクターブダウンを処理
+(defn process-octave-down [state index]
+  "オクターブダウン（<）を処理し、[新しい状態, 次の位置]を返す"
+  [(put state :current-octave (max 0 (- (state :current-octave) 1))) (+ index 1)])
+
+# 音長設定を処理
+(defn process-length [state mml-str index]
+  "音長設定（l8など）を処理し、[新しい状態, 次の位置]を返す"
+  (let [[length-str next-idx] (extract-number mml-str (+ index 1))]
+    (if (nil? length-str)
+      [state (+ index 1)]
+      [(put state :current-length (php/intval length-str)) next-idx])))
+
+# 音符の長さと付点の情報を取得
+(defn get-note-length-info [mml-str pos state]
+  "音符の長さと付点を取得し、[長さ値, 付点の有無, 次の位置]を返す"
+  (let [[length-str dot-pos] (extract-number mml-str pos)
+        has-dot (= "." (php/substr mml-str dot-pos 1))
+        final-pos (+ dot-pos (if has-dot 1 0))
+        note-length (if (nil? length-str)
+                     (state :current-length)
+                     (php/intval length-str))]
+    [note-length has-dot final-pos]))
+
+# 音符を処理
+(defn process-note [state mml-str index]
+  "音符（c, d, e...）を処理し、[新しい状態, 次の位置]を返す"
+  (let [char (php/substr mml-str index 1)
+        # シャープのチェック
+        has-sharp (= "+" (php/substr mml-str (+ index 1) 1))
+        note-name (if has-sharp
+                   (php/strval (str char "+"))
+                   char)
+        
+        # シャープがある場合は1文字余分にスキップ
+        next-pos (+ index (if has-sharp 2 1))
+        
+        # 音符の長さと付点の取得
+        [note-length has-dot final-pos] (get-note-length-info mml-str next-pos state)
+        
+        # 秒単位の長さを計算
+        seconds (calculate-note-length 
+                  (state :tempo) 
+                  note-length 
+                  has-dot)
+        
+        # 期間オブジェクトを作成して追加
+        duration (create-note-duration seconds 
+                                      (state :current-octave) 
+                                      (NOTES-MAP note-name))
+        new-durations (push (state :durations) duration)]
+    
+    # 更新された状態を返す
+    [(put state :durations new-durations) final-pos]))
+
+# 休符を処理
+(defn process-rest [state mml-str index]
+  "休符（r）を処理し、[新しい状態, 次の位置]を返す"
+  (let [# 休符の長さと付点の取得
+        [rest-length has-dot final-pos] (get-note-length-info mml-str (+ index 1) state)
+        
+        # 秒単位の長さを計算
+        seconds (calculate-note-length 
+                  (state :tempo) 
+                  rest-length 
+                  has-dot)
+        
+        # 休符期間オブジェクトを作成して追加
+        duration (create-rest-duration seconds)
+        new-durations (push (state :durations) duration)]
+    
+    # 更新された状態を返す
+    [(put state :durations new-durations) final-pos]))
+
+# 文字に応じた処理を選択して実行
+(defn process-char [state mml-str index]
+  "文字に応じた処理を選択して実行し、[新しい状態, 次の位置]を返す"
+  (let [char (php/substr mml-str index 1)]
+    (cond
+      # テンポ設定
+      (= char "t") (process-tempo state mml-str index)
+      
+      # オクターブ設定
+      (= char "o") (process-octave state mml-str index)
+      
+      # オクターブアップ
+      (= char ">") (process-octave-up state index)
+      
+      # オクターブダウン
+      (= char "<") (process-octave-down state index)
+      
+      # 音長設定
+      (= char "l") (process-length state mml-str index)
+      
+      # 音符処理
+      (contains? NOTES-MAP char) (process-note state mml-str index)
+      
+      # 休符処理
+      (= char "r") (process-rest state mml-str index)
+      
+      # その他の文字は無視
+      :else [state (+ index 1)])))
+
+# 文字列全体を処理する
+(defn process-string [mml-str initial-state]
+  "MML文字列全体を処理して最終的な状態を返す"
+  (let [len (php/strlen mml-str)]
+    # 文字列の長さが0であれば初期状態を返す
+    (if (= len 0)
+      initial-state
+      # インデックス0から開始して、各文字を処理
+      (loop [current-state initial-state
+             idx 0]
+        (if (>= idx len)
+          # 文字列の終端に達した場合は最終状態を返す
+          current-state
+          # 次の文字を処理し、更新された状態と次のインデックスを取得
+          (let [[next-state next-idx] (process-char current-state mml-str idx)]
+            (recur next-state next-idx)))))))
+
+# MML文字列をパースして音楽シーケンスを作成
+(defn parse [mml-string]
+  "MML文字列を解析して音楽シーケンス構造体を返す"
+  (let [# 初期パース状態
+        initial-state {:tempo 120          # デフォルトのテンポ
+                       :current-octave 4   # デフォルトのオクターブ
+                       :current-length 4   # デフォルトの音長（4分音符）
+                       :durations []}      # パース結果の期間配列
+        
+        # 文字列を正規化
+        normalized-mml (normalize-mml mml-string)
+        
+        # 文字列を処理して最終状態を取得
+        final-state (process-string normalized-mml initial-state)]
+    
+    # 音楽シーケンス構造体を作成して返す
+    (music-sequence
+      (final-state :tempo)
+      (final-state :durations))))

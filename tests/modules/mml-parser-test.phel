@@ -1,0 +1,134 @@
+(ns mml2wav\test\modules\mml-parser-test
+  (:require mml2wav\modules\parser :refer [
+    parse
+    note-to-frequency
+  ])
+  (:require phel\test :refer [deftest is]))
+
+(defn approximate= [a b delta]
+  "2つの数値が指定された範囲内で等しいかをチェック"
+  (< (php/abs (- a b)) delta))
+
+(deftest test-parse-tempo
+  "テンポ設定のパースをテスト"
+  (let [sequence (parse "t120")]
+    (is (= 120 (sequence :tempo)) "テンポが正しくパースされている")
+    (is (= [] (sequence :durations)) "デュレーション配列は空")))
+
+(deftest test-parse-tempo-change
+  "テンポ変更のパースをテスト"
+  (let [sequence (parse "t120 c t160 d")]
+    (is (= 160 (sequence :tempo)) "最後に設定されたテンポが反映される")
+    (is (= 2 (count (sequence :durations))) "2つのノートがある")))
+
+(deftest test-parse-octave
+  "オクターブ設定のパースをテスト"
+  (let [sequence (parse "o5 c")]
+    (is (= 120 (sequence :tempo)) "デフォルトテンポ")
+    (is (= 1 (count (sequence :durations))) "1つのノート")
+    (let [note (get-in sequence [:durations 0 :note])]
+      (is (= 5 (note :octave)) "オクターブが5に設定されている"))))
+
+(deftest test-parse-octave-up-down
+  "オクターブ上下のパースをテスト"
+  (let [sequence (parse "o4 c > c < c")]
+    (is (= 3 (count (sequence :durations))) "3つのノート")
+    (let [note1 (get-in sequence [:durations 0 :note])
+          note2 (get-in sequence [:durations 1 :note])
+          note3 (get-in sequence [:durations 2 :note])]
+      (is (= 4 (note1 :octave)) "1つ目のノートはオクターブ4")
+      (is (= 5 (note2 :octave)) "2つ目のノートはオクターブ5")
+      (is (= 4 (note3 :octave)) "3つ目のノートはオクターブ4"))))
+
+(deftest test-parse-note-length
+  "音長設定のパースをテスト"
+  (let [sequence (parse "l8 c l4 d")]
+    (is (= 2 (count (sequence :durations))) "2つのノート")
+    (let [duration1 (get-in sequence [:durations 0 :length])
+          duration2 (get-in sequence [:durations 1 :length])]
+      (is (approximate= 0.25 duration1 0.001) "8分音符の長さは約0.25秒")
+      (is (approximate= 0.5 duration2 0.001) "4分音符の長さは約0.5秒"))))
+
+(deftest test-parse-note-with-length
+  "音長指定付き音符のパースをテスト"
+  (let [sequence (parse "c4 d8")]
+    (is (= 2 (count (sequence :durations))) "2つのノート")
+    (let [duration1 (get-in sequence [:durations 0 :length])
+          duration2 (get-in sequence [:durations 1 :length])]
+      (is (approximate= 0.5 duration1 0.001) "c4の長さは約0.5秒")
+      (is (approximate= 0.25 duration2 0.001) "d8の長さは約0.25秒"))))
+
+(deftest test-parse-dotted-note
+  "付点音符のパースをテスト"
+  (let [sequence (parse "c4. d8.")]
+    (is (= 2 (count (sequence :durations))) "2つのノート")
+    (let [duration1 (get-in sequence [:durations 0 :length])
+          duration2 (get-in sequence [:durations 1 :length])]
+      (is (approximate= 0.75 duration1 0.001) "c4.の長さは約0.75秒")
+      (is (approximate= 0.375 duration2 0.001) "d8.の長さは約0.375秒"))))
+
+(deftest test-parse-rest
+  "休符のパースをテスト"
+  (let [sequence (parse "c r4 d")]
+    (is (= 3 (count (sequence :durations))) "音符、休符、音符の3つ")
+    (let [note1 (get-in sequence [:durations 0 :note])
+          note2 (get-in sequence [:durations 1 :note])
+          note3 (get-in sequence [:durations 2 :note])]
+      (is (= :c (note1 :name)) "最初は音符c")
+      (is (nil? note2) "2つ目は休符")
+      (is (= :d (note3 :name)) "3つ目は音符d"))))
+
+(deftest test-parse-sharps
+  "シャープ音符のパースをテスト"
+  (let [sequence (parse "c+ d+ f+")]
+    (is (= 3 (count (sequence :durations))) "3つのシャープノート")
+    (let [note1 (get-in sequence [:durations 0 :note])
+          note2 (get-in sequence [:durations 1 :note])
+          note3 (get-in sequence [:durations 2 :note])]
+      (is (= :c+ (note1 :name)) "c#")
+      (is (= :d+ (note2 :name)) "d#")
+      (is (= :f+ (note3 :name)) "f#"))))
+
+(deftest test-parse-complex-example
+  "複雑な例のパースをテスト"
+  (let [sequence (parse "t120 o4 l8 c d e f g a b > c4")]
+    (is (= 120 (sequence :tempo)) "テンポは120")
+    (is (= 8 (count (sequence :durations))) "8つのノート")
+    # 最後の音符はオクターブ5のcで、4分音符
+    (let [last-note (get-in sequence [:durations 7 :note])
+          last-duration (get-in sequence [:durations 7 :length])]
+      (is (= 5 (last-note :octave)) "最後の音符はオクターブ5")
+      (is (= :c (last-note :name)) "最後の音符はc")
+      (is (approximate= 0.5 last-duration 0.001) "最後の音符は4分音符"))))
+
+(deftest test-parse-ignore-whitespace
+  "空白を無視することのテスト"
+  (let [sequence-1 (parse "c d e")
+        sequence-2 (parse "c  d    e")
+        sequence-3 (parse "c\nd\ne")]
+    (is (= (sequence-1 :durations) (sequence-2 :durations)) "空白の量に関わらず同じ結果")
+    (is (= (sequence-1 :durations) (sequence-3 :durations)) "改行も無視される")))
+
+(deftest test-parse-empty-string
+  "空文字列のパースをテスト"
+  (let [sequence (parse "")]
+    (is (= 120 (sequence :tempo)) "デフォルトテンポ")
+    (is (= [] (sequence :durations)) "デュレーション配列は空")))
+
+(deftest test-parse-case-insensitive
+  "大文字小文字の区別なしをテスト"
+  (let [sequence-lower (parse "c d e")
+        sequence-upper (parse "C D E")]
+    (is (= (sequence-lower :durations) (sequence-upper :durations)) "大文字小文字は無視される")))
+
+(deftest test-parse-frequencies
+  "パースされた音符の周波数をテスト"
+  (let [sequence (parse "o4 c e g")]
+    (is (= 3 (count (sequence :durations))) "3つの音符")
+    (let [freq-c (note-to-frequency (get-in sequence [:durations 0 :note]))
+          freq-e (note-to-frequency (get-in sequence [:durations 1 :note]))
+          freq-g (note-to-frequency (get-in sequence [:durations 2 :note]))]
+      # C4, E4, G4の周波数を確認
+      (is (approximate= 261.63 freq-c 0.1) "C4の周波数は約261.63Hz")
+      (is (approximate= 329.63 freq-e 0.1) "E4の周波数は約329.63Hz") 
+      (is (approximate= 392.00 freq-g 0.1) "G4の周波数は約392.00Hz"))))

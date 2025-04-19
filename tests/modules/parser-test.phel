@@ -1,11 +1,8 @@
 (ns mml2wav\test\modules\parser-test
   (:require mml2wav\modules\parser :refer [
     create-note
-    create-duration
     create-note-duration
     create-rest-duration
-    create-music-sequence
-    add-duration
     note-to-frequency
     calculate-note-length
   ])
@@ -17,14 +14,14 @@
     (is (= 4 (get note :octave)) "オクターブが正しく設定されている")
     (is (= :a (get note :name)) "音名が正しく設定されている")))
 
-(deftest test-create-duration
-  "期間オブジェクト作成のテスト"
+(deftest test-duration-struct
+  "期間構造体のテスト"
   (let [note (create-note 4 :a)
-        duration (create-duration 0.5 note)]
+        duration (mml2wav\modules\parser/duration 0.5 note)]
     (is (= 0.5 (get duration :length)) "期間の長さが正しく設定されている")
     (is (= note (get duration :note)) "音符が正しく設定されている"))
   
-  (let [rest-duration (create-duration 0.5 nil)]
+  (let [rest-duration (mml2wav\modules\parser/duration 0.5 nil)]
     (is (= 0.5 (get rest-duration :length)) "休符の期間の長さが正しく設定されている")
     (is (nil? (get rest-duration :note)) "休符の音符はnilである")))
 
@@ -42,27 +39,17 @@
     (is (= 0.25 (get duration :length)) "休符の期間の長さが正しく設定されている")
     (is (nil? (get duration :note)) "休符の音符はnilである")))
 
-(deftest test-create-music-sequence
-  "音楽シーケンス作成のテスト"
-  (let [sequence (create-music-sequence 120)]
-    (is (= 120 (get sequence :tempo)) "テンポが正しく設定されている")
-    (is (= [] (get sequence :durations)) "期間の配列が空で初期化されている")))
-
-(deftest test-add-duration
-  "シーケンスへの期間追加のテスト"
-  (let [sequence (create-music-sequence 120)
-        duration1 (create-note-duration 0.5 4 :c)
+(deftest test-music-sequence-struct
+  "音楽シーケンス構造体のテスト"
+  (let [duration1 (create-note-duration 0.5 4 :c)
         duration2 (create-rest-duration 0.25)
-        
-        # 期間を追加
-        sequence (add-duration sequence duration1)
-        sequence (add-duration sequence duration2)
-        
-        durations (get sequence :durations)]
+        durations [duration1 duration2]
+        sequence (mml2wav\modules\parser/music-sequence 120 durations)]
     
-    (is (= 2 (count durations)) "期間が2つ追加されている")
-    (is (= duration1 (get durations 0)) "1つ目の期間が正しく追加されている")
-    (is (= duration2 (get durations 1)) "2つ目の期間が正しく追加されている")))
+    (is (= 120 (get sequence :tempo)) "テンポが正しく設定されている")
+    (is (= 2 (count (get sequence :durations))) "期間が2つ追加されている")
+    (is (= duration1 (get-in sequence [:durations 0])) "1つ目の期間が正しく設定されている")
+    (is (= duration2 (get-in sequence [:durations 1])) "2つ目の期間が正しく設定されている")))
 
 (deftest test-note-to-frequency
   "音符から周波数への変換テスト"
