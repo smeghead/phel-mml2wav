@@ -1,0 +1,31 @@
+(ns mml2wav\tests\modules\wav-test
+  (:require phel\test :refer [deftest is])
+  (:require mml2wav\modules\wav :as wav))
+
+(deftest test-write-wav-header
+  (let [sample-rate 44100
+        bit-depth 16
+        channels 1
+        sample-count 1000
+        header (wav/write-wav-header sample-rate bit-depth channels sample-count)]
+    (is (= 44 (php/strlen header)) "WAVヘッダーは44バイトであるべき")
+    (is (= "RIFF" (php/substr header 0 4)) "ヘッダーはRIFFで始まるべき")
+    (is (= "WAVE" (php/substr header 8 4)) "RIFFタイプはWAVEであるべき")
+    (is (= "fmt " (php/substr header 12 4)) "フォーマットチャンクが存在するべき")
+    (is (= "data" (php/substr header 36 4)) "データチャンクマーカーが存在するべき")))
+
+(deftest test-write-pcm-data
+  (let [pcm-data [0 0 255 127 1 -128]
+        binary-data (wav/write-pcm-data pcm-data)]
+    (is (= 6 (php/strlen binary-data)) "3つのサンプルで6バイト生成されるはず")
+    (is (= (php/chr 0) (php/substr binary-data 0 1)) "最初のバイトは0であるべき")
+    (is (= (php/chr 0) (php/substr binary-data 1 1)) "2番目のバイトは0であるべき")
+    (is (= (php/chr 255) (php/substr binary-data 2 1)) "3番目のバイトは255であるべき")
+    (is (= (php/chr 127) (php/substr binary-data 3 1)) "4番目のバイトは127であるべき")))
+
+(deftest test-create-wav-from-samples
+  (let [samples [0.0 0.5 1.0 -1.0]
+        wav-data (wav/create-wav-from-samples samples 8000 true)]
+    (is (> (php/strlen wav-data) 44) "WAVデータはヘッダーとコンテンツを含むべき")
+    (is (= (+ 44 8) (php/strlen wav-data)) "WAVデータは44バイトのヘッダー + 4サンプル分の8バイトを含むべき")
+    (is (= "RIFF" (php/substr wav-data 0 4)) "生成されたWAVはRIFFで始まるべき")))

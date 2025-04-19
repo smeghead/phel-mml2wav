@@ -1,60 +1,25 @@
-(ns mml2wav\main)
+(ns mml2wav\main
+  (:require mml2wav\modules\parser :as parser)
+  (:require mml2wav\modules\waveform :as waveform)
+  (:require mml2wav\modules\pcm :as pcm)
+  (:require mml2wav\modules\wav :as wav))
 
-#周波数freqのサイン波をduration秒間生成する
-(defn generate-sine-wave [freq duration sample-rate]
-  (let [samples (php/floor (* duration sample-rate))]
-    (for [i :range [0 samples]]
-      (let [t (/ i sample-rate)]
-        (php/sin (* 2 php/M_PI freq t))))))
-
-#サンプルデータを16bit PCM形式に変換する (-32768〜32767の範囲)
-(defn normalize-to-16bit [samples]
-  (let [result (php/array)]
-    (for [s :in samples]
-      (let [pcm-value (php/floor (* s 32767.0))]
-        # 16bitの範囲内に収める
-        (if (> pcm-value 32767) 
-          32767
-          (if (< pcm-value -32768) 
-            -32768 
-            pcm-value))))))
-
-(defn write-wav-header [sample-rate bit-depth channels sample-count]
-  "WAVファイルのヘッダを生成する"
-  (let [bytes-per-sample (/ bit-depth 8)
-        byte-rate (* sample-rate bytes-per-sample channels)
-        block-align (* bytes-per-sample channels)
-        data-size (* sample-count bytes-per-sample channels)]
-    (str 
-      (php/pack "C4" 0x52 0x49 0x46 0x46)         # "RIFF"
-      (php/pack "V" (+ 36 data-size))             # ファイルサイズ - 8
-      (php/pack "C4" 0x57 0x41 0x56 0x45)         # "WAVE"
-      (php/pack "C4" 0x66 0x6D 0x74 0x20)         # "fmt "
-      (php/pack "V" 16)                           # fmtチャンクサイズ
-      (php/pack "v" 1)                            # フォーマットID (PCM)
-      (php/pack "v" channels)                     # チャンネル数
-      (php/pack "V" sample-rate)                  # サンプリングレート
-      (php/pack "V" byte-rate)                    # データ速度
-      (php/pack "v" block-align)                  # ブロックサイズ
-      (php/pack "v" bit-depth)                    # ビット深度
-      (php/pack "C4" 0x64 0x61 0x74 0x61)         # "data"
-      (php/pack "V" data-size))))                 # データサイズ
-
-#16bit PCMサンプルをバイナリデータに変換
-(defn write-16bit-pcm-data [samples]
-  (apply str (for [sample :in samples]
-              (php/pack "v" (php/intval sample)))))
-
-#指定された周波数の音をWAVファイルとして出力
-(defn generate-wav [freq duration sample-rate]
-  (let [samples (generate-sine-wave freq duration sample-rate)
-        pcm-samples (normalize-to-16bit samples)
-        header (write-wav-header sample-rate 16 1 (php/count samples))
-        data (write-16bit-pcm-data pcm-samples)]
-    (str header data)))
+(defn process-mml-to-wav [input-mml sample-rate]
+  "MMLから波形データを生成し、WAVファイルのバイナリデータを返す"
+  (let [# MML文字列をパースして音符情報に変換
+        notes (parser/parse input-mml)
+        # 音符情報から波形データを生成
+        wave-samples (waveform/generate-waveform notes sample-rate)
+        # 波形データからWAVデータを生成（内部でPCM変換も行われる）
+        wav-data (wav/create-wav-from-samples wave-samples sample-rate true)]
+    wav-data))
 
 (when-not *build-mode*
-  (let [# A音(440Hz)を1秒間、サンプリングレート44100Hzで生成
-        wav-data (generate-wav 440 1 44100)]
-    # 標準出力にバイナリデータを出力
+  (let [# 標準入力からMMLを読み込み
+        input-mml (php/file_get_contents "php://stdin")
+        # サンプリングレートを設定
+        sample-rate 44100
+        # MMLをWAVに変換
+        wav-data (process-mml-to-wav input-mml sample-rate)]
+    # 標準出力にWAVデータを出力
     (php/fwrite php/STDOUT wav-data)))

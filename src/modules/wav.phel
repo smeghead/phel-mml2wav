@@ -1,0 +1,40 @@
+(ns mml2wav\modules\wav
+  (:require phel\str :as str)
+  (:require mml2wav\modules\pcm :as pcm))
+
+(defn write-wav-header [sample-rate bit-depth channels sample-count]
+  "指定されたオーディオパラメータでWAVファイルヘッダーを生成する"
+  (let [bytes-per-sample (/ bit-depth 8)
+        byte-rate (* sample-rate bytes-per-sample channels)
+        block-align (* bytes-per-sample channels)
+        data-size (* sample-count bytes-per-sample channels)]
+    (str 
+      (php/pack "C4" 0x52 0x49 0x46 0x46)         # "RIFF"
+      (php/pack "V" (+ 36 data-size))             # ファイルサイズ - 8
+      (php/pack "C4" 0x57 0x41 0x56 0x45)         # "WAVE"
+      (php/pack "C4" 0x66 0x6D 0x74 0x20)         # "fmt "
+      (php/pack "V" 16)                           # fmtチャンクサイズ
+      (php/pack "v" 1)                            # フォーマットID (PCM)
+      (php/pack "v" channels)                     # チャンネル数
+      (php/pack "V" sample-rate)                  # サンプリングレート
+      (php/pack "V" byte-rate)                    # バイトレート
+      (php/pack "v" block-align)                  # ブロックアライン
+      (php/pack "v" bit-depth)                    # ビット深度
+      (php/pack "C4" 0x64 0x61 0x74 0x61)         # "data"
+      (php/pack "V" data-size))))                 # データサイズ
+
+(defn write-pcm-data [pcm-data]
+  "PCMデータ配列をバイナリ文字列に変換する"
+  (str/join ""
+    (for [i :range [0 (php/count pcm-data) 2]]
+      (let [low-byte (get pcm-data i)
+            high-byte (get pcm-data (+ i 1))]
+        (str (php/chr low-byte) (php/chr high-byte))))))
+
+(defn create-wav-from-samples [samples sample-rate normalize?]
+  "浮動小数点サンプルから完全なWAVファイルを作成する"
+  (let [pcm-data (pcm/create-pcm-from-wave samples normalize?)
+        sample-count (/ (php/count pcm-data) 2)  # 16ビットでは1サンプルあたり2バイト
+        header (write-wav-header sample-rate 16 1 sample-count)
+        data (write-pcm-data pcm-data)]
+    (str header data)))
