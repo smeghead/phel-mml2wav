@@ -1,0 +1,99 @@
+(ns mml2wav\test\modules\parser-test
+  (:require mml2wav\modules\parser :refer [
+    create-note
+    create-duration
+    create-note-duration
+    create-rest-duration
+    create-music-sequence
+    add-duration
+    note-to-frequency
+    calculate-note-length
+  ])
+  (:require phel\test :refer [deftest is]))
+
+(deftest test-create-note
+  "音符オブジェクト作成のテスト"
+  (let [note (create-note 4 :a)]
+    (is (= 4 (get note :octave)) "オクターブが正しく設定されている")
+    (is (= :a (get note :name)) "音名が正しく設定されている")))
+
+(deftest test-create-duration
+  "期間オブジェクト作成のテスト"
+  (let [note (create-note 4 :a)
+        duration (create-duration 0.5 note)]
+    (is (= 0.5 (get duration :length)) "期間の長さが正しく設定されている")
+    (is (= note (get duration :note)) "音符が正しく設定されている"))
+  
+  (let [rest-duration (create-duration 0.5 nil)]
+    (is (= 0.5 (get rest-duration :length)) "休符の期間の長さが正しく設定されている")
+    (is (nil? (get rest-duration :note)) "休符の音符はnilである")))
+
+(deftest test-create-note-duration
+  "音符付き期間ショートカット作成のテスト"
+  (let [duration (create-note-duration 0.5 4 :c)]
+    (is (= 0.5 (get duration :length)) "期間の長さが正しく設定されている")
+    (let [note (get duration :note)]
+      (is (= 4 (get note :octave)) "オクターブが正しく設定されている")
+      (is (= :c (get note :name)) "音名が正しく設定されている"))))
+
+(deftest test-create-rest-duration
+  "休符期間ショートカット作成のテスト"
+  (let [duration (create-rest-duration 0.25)]
+    (is (= 0.25 (get duration :length)) "休符の期間の長さが正しく設定されている")
+    (is (nil? (get duration :note)) "休符の音符はnilである")))
+
+(deftest test-create-music-sequence
+  "音楽シーケンス作成のテスト"
+  (let [sequence (create-music-sequence 120)]
+    (is (= 120 (get sequence :tempo)) "テンポが正しく設定されている")
+    (is (= [] (get sequence :durations)) "期間の配列が空で初期化されている")))
+
+(deftest test-add-duration
+  "シーケンスへの期間追加のテスト"
+  (let [sequence (create-music-sequence 120)
+        duration1 (create-note-duration 0.5 4 :c)
+        duration2 (create-rest-duration 0.25)
+        
+        # 期間を追加
+        sequence (add-duration sequence duration1)
+        sequence (add-duration sequence duration2)
+        
+        durations (get sequence :durations)]
+    
+    (is (= 2 (count durations)) "期間が2つ追加されている")
+    (is (= duration1 (get durations 0)) "1つ目の期間が正しく追加されている")
+    (is (= duration2 (get durations 1)) "2つ目の期間が正しく追加されている")))
+
+(deftest test-note-to-frequency
+  "音符から周波数への変換テスト"
+  # 基準音A4(440Hz)のテスト
+  (let [note-a4 (create-note 4 :a)]
+    (is (= 440.0 (note-to-frequency note-a4)) "A4は440Hzである"))
+  
+  # 中央のC(C4, ド)のテスト
+  (let [note-c4 (create-note 4 :c)]
+    (is (> 0.01 (php/abs (- 261.63 (note-to-frequency note-c4)))) "C4は約261.63Hz"))
+  
+  # 1オクターブ上のA(A5)のテスト - 周波数は2倍になる
+  (let [note-a5 (create-note 5 :a)]
+    (is (= 880.0 (note-to-frequency note-a5)) "A5は880Hz (A4の2倍)"))
+  
+  # 休符のテスト
+  (is (= 0.0 (note-to-frequency nil)) "休符の周波数は0Hz"))
+
+(deftest test-calculate-note-length
+  "テンポと音長から実時間計算のテスト"
+  # テンポ120での4分音符のテスト
+  (is (= 0.5 (calculate-note-length 120 4 false)) "テンポ120の4分音符は0.5秒")
+  
+  # テンポ60での4分音符のテスト
+  (is (= 1.0 (calculate-note-length 60 4 false)) "テンポ60の4分音符は1.0秒")
+  
+  # テンポ120での8分音符のテスト
+  (is (= 0.25 (calculate-note-length 120 8 false)) "テンポ120の8分音符は0.25秒")
+  
+  # テンポ120での付点4分音符のテスト
+  (is (= 0.75 (calculate-note-length 120 4 true)) "テンポ120の付点4分音符は0.75秒")
+  
+  # テンポ120での全音符のテスト
+  (is (= 2.0 (calculate-note-length 120 1 false)) "テンポ120の全音符は2.0秒"))
