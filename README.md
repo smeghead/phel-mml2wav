@@ -10,7 +10,7 @@ Music Macro Language (MML) is a music description language used in many applicat
 
 ### Prerequisites
 
-- PHP 7.4 or later
+- PHP 8.4 or later
 - [Composer](https://getcomposer.org/)
 
 ### Setup
