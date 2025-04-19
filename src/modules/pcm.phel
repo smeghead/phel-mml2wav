@@ -1,0 +1,48 @@
+(ns mml2wav\modules\pcm)
+
+(defn convert-to-pcm
+  "波形データ（範囲: -1.0〜1.0）を16bit PCMデータに変換する
+   samples: 波形サンプル値の配列
+   戻り値: バイト配列（16bit PCM Little Endianフォーマット）"
+  [samples]
+  (let [max-value 32767 # 16bitの最大値 (2^15 - 1)
+        buffer (map
+                 (fn [sample]
+                   # 波形値を-32767〜32767の範囲にスケーリング
+                   (let [scaled-value (php/round (* sample max-value))
+                         # 値が範囲を超えないようにクリッピング
+                         clipped-value (cond
+                                         (> scaled-value max-value) max-value
+                                         (< scaled-value (- max-value)) (- max-value)
+                                         :else scaled-value)
+                         # Little Endian形式でバイトに変換
+                         low-byte (php/& clipped-value 0xFF)
+                         high-byte (php/>> clipped-value 8)]
+                     # バッファに追加（Little Endian順）
+                     [low-byte high-byte]))
+                 samples)]
+    (apply concat buffer)))
+
+(defn normalize-samples
+  "波形サンプルを正規化して-1.0〜1.0の範囲に収める
+   samples: 波形サンプル値の配列
+   戻り値: 正規化されたサンプル値の配列"
+  [samples]
+  (let [max-abs (apply max (map php/abs samples))]
+    (if (> max-abs 0)
+      (map
+        (fn [sample] (/ sample max-abs))
+        samples)
+      samples)))
+
+(defn create-pcm-from-wave
+  "波形データを受け取り、必要に応じて正規化してPCMデータに変換する
+   wave-data: 波形サンプル値の配列
+   normalize?: 正規化するかどうかのフラグ（デフォルト: true）
+   戻り値: 16bit PCMフォーマットのバイト配列"
+  [wave-data & [normalize?]]
+  (let [should-normalize (if (nil? normalize?) true normalize?)
+        samples (if should-normalize
+                  (normalize-samples wave-data)
+                  wave-data)]
+    (convert-to-pcm samples)))

@@ -1,0 +1,45 @@
+(ns mml2wav\tests\modules\pcm-test
+  (:require phel\test :refer [deftest is])
+  (:require mml2wav\modules\pcm :as pcm))
+
+(deftest test-normalize-samples
+  (let [samples [0.5 -1.0 0.25]
+        normalized (pcm/normalize-samples samples)]
+    (is (= [0.5 -1.0 0.25] normalized) "すでに-1.0〜1.0の範囲内の場合は変更なし"))
+  
+  (let [samples [2.0 -4.0 1.0]
+        normalized (pcm/normalize-samples samples)]
+    (is (= [0.5 -1.0 0.25] normalized) "最大絶対値で割って正規化される"))
+  
+  (let [samples [0.0 0.0 0.0]
+        normalized (pcm/normalize-samples samples)]
+    (is (= [0.0 0.0 0.0] normalized) "すべて0の場合は変更なし")))
+
+(deftest test-convert-to-pcm
+  (let [samples [0.0]
+        pcm-data (pcm/convert-to-pcm samples)]
+    (is (= [0 0] pcm-data) "0.0は16bitPCMで[0, 0]"))
+  
+  (let [samples [1.0]
+        pcm-data (pcm/convert-to-pcm samples)]
+    (is (= [255 127] pcm-data) "1.0は16bitPCMで[255, 127] (32767 in Little Endian)"))
+  
+  (let [samples [-1.0]
+        pcm-data (pcm/convert-to-pcm samples)]
+    (is (= [1 -128] pcm-data) "-1.0は16bitPCMで[1, -128] (-32767 in Little Endian)"))
+  
+  (let [samples [0.5]
+        pcm-data (pcm/convert-to-pcm samples)]
+    (is (= [0 64] pcm-data) "0.5は16bitPCMで約16384になる (Little Endian)")))
+
+(deftest test-create-pcm-from-wave
+  (let [wave-data [0.5 -1.0 0.25]
+        pcm-data (pcm/create-pcm-from-wave wave-data)]
+    (is (= 6 (count pcm-data)) "3サンプルで6バイトのPCMデータが生成される"))
+  
+  (let [wave-data [2.0 -4.0 1.0]
+        pcm-data-with-normalize (pcm/create-pcm-from-wave wave-data true)
+        pcm-data-without-normalize (pcm/create-pcm-from-wave wave-data false)]
+    (is (not= pcm-data-with-normalize pcm-data-without-normalize) "正規化の有無で結果が変わる")
+    (is (= 6 (count pcm-data-with-normalize)) "正規化しても同じバイト数")
+    (is (= 6 (count pcm-data-without-normalize)) "正規化しなくても同じバイト数")))
