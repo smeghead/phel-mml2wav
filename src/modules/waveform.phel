@@ -12,9 +12,9 @@
   (php/sin x))
 
 # 特定の周波数と長さで波形を生成
-(defn generate-wave [frequency duration-sec amplitude]
+(defn generate-wave [frequency duration-sec amplitude sample-rate]
   "指定された周波数と長さの波形データ配列を生成"
-  (let [sample-count (php/intval (php/ceil (* duration-sec SAMPLE-RATE)))
+  (let [sample-count (php/intval (php/ceil (* duration-sec sample-rate)))
         angular-frequency (* 2 php/M_PI frequency)]
     
     # 各サンプルの値を計算
@@ -23,7 +23,7 @@
       (if (>= i sample-count)
         acc
         # Sin波を生成（時間 t における値）
-        (let [t (/ i SAMPLE-RATE)
+        (let [t (/ i sample-rate)
               sample-value (* amplitude (sin (* angular-frequency t)))]
           
           # フェードイン/アウト処理
@@ -41,32 +41,46 @@
             
             # 配列に追加
             (recur (inc i) (push acc final-value))))))))
-        
 
 # 音符から波形データを生成
-(defn note-to-wave [duration]
+(defn note-to-wave [duration sample-rate]
   "1つの音符または休符から波形データを生成"
   (let [length (duration :length)
         note (duration :note)]
     
     (if (nil? note)
       # 休符の場合は無音波形を返す
-      (let [sample-count (php/intval (php/ceil (* length SAMPLE-RATE)))
+      (let [sample-count (php/intval (php/ceil (* length sample-rate)))
             zeros (php/array_fill 0 sample-count 0.0)]
         zeros)
         
       # 音符の場合は周波数を計算して波形を生成
       (let [frequency (parser/note-to-frequency note)]
-        (generate-wave frequency length 0.8)))))  # 振幅は0.8（最大値の80%）に設定
+        (generate-wave frequency length 0.8 sample-rate)))))  # 振幅は0.8（最大値の80%）に設定
 
-# 音楽シーケンス全体から波形を生成
-(defn generate-waveform [music-seq]
-  "音楽シーケンス全体から波形データ配列を生成"
-  (let [waves (for [duration :in (music-seq :durations)]
-                (note-to-wave duration))]
-    
-    # 全波形を連結して1つの波形にする
-    (apply concat waves)))
+# 1つの音符のサンプル数を計算
+(defn calculate-note-samples [duration sample-rate]
+  "1つの音符または休符のサンプル数を計算"
+  (let [length (duration :length)]
+    (php/intval (php/ceil (* length sample-rate)))))
+
+# シーケンス全体のサンプル数を計算
+(defn calculate-total-samples [music-seq sample-rate]
+  "音楽シーケンス全体のサンプル数を計算"
+  (loop [durations (music-seq :durations)
+         total 0]
+    (if (empty? durations)
+      total
+      (recur (rest durations) 
+             (+ total (calculate-note-samples (first durations) sample-rate))))))
+
+## 次の関数は使われなくなりますが、互換性のために残しておきます
+#(defn generate-waveform [music-seq sample-rate]
+#  "音楽シーケンス全体から波形データ配列を生成"
+#  (let [waves (for [duration :in (music-seq :durations)]
+#                (note-to-wave duration sample-rate))]
+#    # 全波形を連結して1つの波形にする
+#    (apply concat waves)))
 
 # 波形を正規化して-1.0〜1.0の範囲に収める
 (defn normalize-waveform [waveform]
@@ -78,9 +92,3 @@
     # 最大振幅で正規化（-1.0〜1.0の範囲）
     (for [sample :in waveform]
       (/ sample max-amp))))
-
-# 音楽シーケンスから正規化された波形を生成（メインの関数）
-(defn generate [music-seq]
-  "音楽シーケンスから正規化された波形を生成する（-1.0〜1.0の範囲）"
-  (let [raw-waveform (generate-waveform music-seq)]
-    (normalize-waveform raw-waveform)))

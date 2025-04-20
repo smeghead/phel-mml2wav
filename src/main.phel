@@ -4,22 +4,31 @@
   (:require mml2wav\modules\pcm :as pcm)
   (:require mml2wav\modules\wav :as wav))
 
-(defn process-mml-to-wav [input-mml sample-rate]
-  "MMLから波形データを生成し、WAVファイルのバイナリデータを返す"
+(defn process-mml-to-wav-stream [input-mml sample-rate output-stream]
+  "MMLから波形データを生成し、WAVファイルのバイナリデータをストリームに書き込む"
   (let [# MML文字列をパースして音符情報に変換
         notes (parser/parse input-mml)
-        # 音符情報から波形データを生成
-        wave-samples (waveform/generate-waveform notes sample-rate)
-        # 波形データからWAVデータを生成（内部でPCM変換も行われる）
-        wav-data (wav/create-wav-from-samples wave-samples sample-rate true)]
-    wav-data))
+        # 音符情報のサンプル数を計算して、WAVヘッダーを生成・出力
+        total-sample-count (waveform/calculate-total-samples notes sample-rate)
+        wav-header (wav/write-wav-header sample-rate 16 1 total-sample-count)]
+    
+    # ヘッダーをストリームに書き込む
+    (php/fwrite output-stream wav-header)
+    
+    # 各音符を個別に処理して出力
+    (foreach [duration (notes :durations)]
+      (let [# 音符から波形データを生成
+            note-samples (waveform/note-to-wave duration sample-rate)
+            # 波形データをPCMに変換
+            pcm-data (pcm/create-pcm-from-wave note-samples true)
+            # PCMデータをバイナリに変換して出力
+            binary-data (wav/write-pcm-data pcm-data)]
+        (php/fwrite output-stream binary-data)))))
 
 (when-not *build-mode*
   (let [# 標準入力からMMLを読み込み
         input-mml (php/file_get_contents "php://stdin")
         # サンプリングレートを設定
-        sample-rate 44100
-        # MMLをWAVに変換
-        wav-data (process-mml-to-wav input-mml sample-rate)]
-    # 標準出力にWAVデータを出力
-    (php/fwrite php/STDOUT wav-data)))
+        sample-rate 44100]
+    # MMLをWAVに変換してストリームに出力
+    (process-mml-to-wav-stream input-mml sample-rate php/STDOUT)))

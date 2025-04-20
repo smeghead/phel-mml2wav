@@ -2,8 +2,11 @@
   (:require phel\test :refer [deftest is])
   (:require mml2wav\modules\wav :as wav))
 
+# テスト用定数
+(def TEST-SAMPLE-RATE 8000)  # テスト用低サンプルレート
+
 (deftest test-write-wav-header
-  (let [sample-rate 44100
+  (let [sample-rate TEST-SAMPLE-RATE
         bit-depth 16
         channels 1
         sample-count 1000
@@ -25,7 +28,7 @@
 
 (deftest test-create-wav-from-samples
   (let [samples [0.0 0.5 1.0 -1.0]
-        wav-data (wav/create-wav-from-samples samples 8000 true)]
+        wav-data (wav/create-wav-from-samples samples TEST-SAMPLE-RATE true)]
     (is (> (php/strlen wav-data) 44) "WAVデータはヘッダーとコンテンツを含むべき")
     (is (= (+ 44 8) (php/strlen wav-data)) "WAVデータは44バイトのヘッダー + 4サンプル分の8バイトを含むべき")
     (is (= "RIFF" (php/substr wav-data 0 4)) "生成されたWAVはRIFFで始まるべき")))

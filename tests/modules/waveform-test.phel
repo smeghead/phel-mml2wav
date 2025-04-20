@@ -6,6 +6,7 @@
 
 # 定数
 (def EPSILON 0.00001)  # 浮動小数点数比較の許容誤差
+(def TEST-SAMPLE-RATE 44100)  # テスト用サンプルレート
 
 # 浮動小数点数の近似等価性を調べる関数
 (defn approximately-equal? [a b]
@@ -33,23 +34,23 @@
 (deftest wave-generation
   "特定の周波数と長さでの波形生成をテスト"
   (let [# 1Hzの波形を1秒間生成 (1周期)
-        wave (wf/generate-wave 1.0 1.0 1.0)
+        wave (wf/generate-wave 1.0 1.0 1.0 TEST-SAMPLE-RATE)
         # サンプル数を確認
         sample-count (count wave)]
     
     # サンプル数はサンプルレートと一致するはず
-    (is (= sample-count wf/SAMPLE-RATE))
+    (is (= sample-count TEST-SAMPLE-RATE))
     
     # 最初のサンプルは0に近いはず（フェードインの影響あり）
     (is (approximately-equal? (wave 0) 0.0))
     
     # 1/4周期（π/2）の位置にあるサンプルは1に近いはず
-    (let [quarter-index (php/intval (/ wf/SAMPLE-RATE 4))
+    (let [quarter-index (php/intval (/ TEST-SAMPLE-RATE 4))
           quarter-sample (wave quarter-index)]
       (is (> quarter-sample 0.9)))  # フェード処理で完全に1.0にはならない
     
     # 1/2周期（π）の位置にあるサンプルは0に近いはず
-    (let [half-index (php/intval (/ wf/SAMPLE-RATE 2))
+    (let [half-index (php/intval (/ TEST-SAMPLE-RATE 2))
           half-sample (wave half-index)]
       (is (approximately-equal? half-sample 0.0)))))
 
@@ -59,12 +60,12 @@
   # A4音符（440Hz）の0.5秒間の波形を生成
   (let [note (parser/create-note 4 :a)
         duration (parser/duration 0.5 note)
-        wave (wf/note-to-wave duration)
+        wave (wf/note-to-wave duration TEST-SAMPLE-RATE)
         # サンプル数を確認
         sample-count (php/count wave)]
     
     # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
-    (is (approximately-equal? sample-count (* wf/SAMPLE-RATE 0.5)))
+    (is (approximately-equal? sample-count (* TEST-SAMPLE-RATE 0.5)))
     
     # 波形の中間点は0ではない（音が鳴っている）
     (let [mid-index (php/intval (/ sample-count 2))
@@ -76,12 +77,12 @@
   "休符から波形への変換をテスト"
   # 0.5秒間の休符
   (let [duration (parser/duration 0.5 nil)
-        wave (wf/note-to-wave duration)
+        wave (wf/note-to-wave duration TEST-SAMPLE-RATE)
         # サンプル数を確認
         sample-count (php/count wave)]
     
     # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
-    (is (approximately-equal? sample-count (* wf/SAMPLE-RATE 0.5)))
+    (is (approximately-equal? sample-count (* TEST-SAMPLE-RATE 0.5)))
     
     # すべてのサンプルが0（無音）であることを確認
     (foreach [sample wave]
@@ -113,18 +114,37 @@
         duration3 (parser/create-note-duration 0.25 4 :g)  # G4を0.25秒
         music-seq (parser/music-sequence 120 [duration1 duration2 duration3])
         
-        # 波形を生成して正規化
-        waveform (wf/generate music-seq)]
+        # 各音符の波形を生成して連結
+        waves (for [duration :in (music-seq :durations)]
+                (wf/note-to-wave duration TEST-SAMPLE-RATE))
+        waveform (apply concat waves)
+        # 波形を正規化
+        normalized-waveform (wf/normalize-waveform waveform)]
     
     # 生成された波形のサンプル数を確認
-    (let [expected-samples (* wf/SAMPLE-RATE (+ 0.25 0.25 0.25))  # 合計0.75秒
+    (let [expected-samples (* TEST-SAMPLE-RATE (+ 0.25 0.25 0.25))  # 合計0.75秒
           actual-samples (php/count waveform)]
       (is (approximately-equal? actual-samples expected-samples)))
     
     # 正規化された波形の最大振幅は1.0以下
-    (let [max-amp 0.0]
-      (foreach [sample waveform]
-        (let [abs-sample (php/abs sample)]
-          (when (> abs-sample max-amp)
-            (set max-amp abs-sample))))
+    (let [max-amp (apply max (map php/abs normalized-waveform))]
       (is (<= max-amp 1.0)))))
+
+# 音符のサンプル数計算をテスト
+(deftest calculate-samples-test
+  "音符のサンプル数計算をテスト"
+  # 0.5秒間の音符のサンプル数を計算
+  (let [duration (parser/duration 0.5 nil)
+        samples (wf/calculate-note-samples duration TEST-SAMPLE-RATE)]
+    
+    # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
+    (is (= samples (php/intval (php/ceil (* TEST-SAMPLE-RATE 0.5))))))
+  
+  # シーケンス全体のサンプル数を計算
+  (let [duration1 (parser/create-note-duration 0.25 4 :c)  # C4を0.25秒
+        duration2 (parser/create-rest-duration 0.25)       # 0.25秒の休符
+        music-seq (parser/music-sequence 120 [duration1 duration2])
+        total-samples (wf/calculate-total-samples music-seq TEST-SAMPLE-RATE)]
+    
+    # 合計サンプル数は0.5秒分になるはず
+    (is (= total-samples (php/intval (php/ceil (* TEST-SAMPLE-RATE 0.5)))))))
