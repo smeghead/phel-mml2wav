@@ -126,7 +126,7 @@
       # テンポ数値が見つからない場合は状態を変えず次の文字へ
       [state (+ index 1)]
       # テンポを更新して次の文字へ
-      [(put state :tempo (php/intval tempo-str)) next-idx])))
+      [(put state :current-tempo (php/intval tempo-str)) next-idx])))
 
 # オクターブ設定を処理
 (defn process-octave [state mml-str index]
@@ -183,7 +183,7 @@
         
         # 秒単位の長さを計算
         seconds (calculate-note-length 
-                  (state :tempo) 
+                  (state :current-tempo) 
                   note-length 
                   has-dot)
         
@@ -191,7 +191,7 @@
         duration (create-note-duration seconds 
                                      (state :current-octave) 
                                      (NOTES-MAP note-name)
-                                     (state :tempo))
+                                     (state :current-tempo))
         new-durations (push (state :durations) duration)]
     
     # 更新された状態を返す
@@ -205,12 +205,12 @@
         
         # 秒単位の長さを計算
         seconds (calculate-note-length
-                  (state :tempo)
+                  (state :current-tempo)
                   rest-length
                   has-dot)
         
         # 休符期間オブジェクトを作成して追加
-        duration (create-rest-duration seconds (state :tempo))
+        duration (create-rest-duration seconds (state :current-tempo))
         new-durations (push (state :durations) duration)]
     
     # 更新された状態を返す
@@ -246,21 +246,18 @@
       :else [state (+ index 1)])))
 
 # 文字列全体を処理する
-(defn process-string [mml-str initial-state]
+(defn process-string [mml-str state]
   "MML文字列全体を処理して最終的な状態を返す"
   (let [len (php/strlen mml-str)]
-    # 文字列の長さが0であれば初期状態を返す
-    (if (= len 0)
-      initial-state
-      # インデックス0から開始して、各文字を処理
-      (loop [current-state initial-state
-             idx 0]
-        (if (>= idx len)
-          # 文字列の終端に達した場合は最終状態を返す
-          current-state
-          # 次の文字を処理し、更新された状態と次のインデックスを取得
-          (let [[next-state next-idx] (process-char current-state mml-str idx)]
-            (recur next-state next-idx)))))))
+    # インデックス0から開始して、各文字を処理
+    (loop [current-state state
+           idx 0]
+      (if (>= idx len)
+        # 文字列の終端に達した場合は期間配列を返す
+        (current-state :durations)
+        # 次の文字を処理し、更新された状態と次のインデックスを取得
+        (let [[next-state next-idx] (process-char current-state mml-str idx)]
+          (recur next-state next-idx))))))
 
 # MML文字列をパースして音楽シーケンスを作成
 (defn parse [mml-string]
@@ -268,15 +265,11 @@
   (let [# 初期パース状態
         initial-state {:current-octave 4   # デフォルトのオクターブ
                        :current-length 4   # デフォルトの音長（4分音符）
-                       :tempo 120          # デフォルトのテンポ
+                       :current-tempo 120  # デフォルトのテンポ
                        :durations []}      # パース結果の期間配列
         
         # 文字列を正規化
-        normalized-mml (normalize-mml mml-string)
-        
-        # 文字列を処理して最終状態を取得
-        final-state (process-string normalized-mml initial-state)]
+        normalized-mml (normalize-mml mml-string)]
 
     # 音楽シーケンス構造体を作成して返す
-    (music-sequence
-      (final-state :durations))))
+    (music-sequence (process-string normalized-mml initial-state))))
