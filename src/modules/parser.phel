@@ -10,11 +10,11 @@
 (defstruct duration [
   length      # 長さ（秒）
   note        # 音符データ、休符の場合はnil
+  tempo       # テンポ（BPM）
 ])
 
 # 全体の音楽シーケンス
 (defstruct music-sequence [
-  tempo       # テンポ（BPM）
   durations   # 期間の配列
 ])
 
@@ -24,14 +24,14 @@
   (note octave name))
 
 # 音符を含む期間を作成するショートカット
-(defn create-note-duration [length octave name]
+(defn create-note-duration [length octave name tempo]
   "指定された音符を持つ期間を作成"
-  (duration length (create-note octave name)))
+  (duration length (create-note octave name) tempo))
 
 # 休符期間を作成するショートカット
-(defn create-rest-duration [length]
+(defn create-rest-duration [length tempo]
   "休符（無音）期間を作成"
-  (duration length nil))
+  (duration length nil tempo))
 
 # 周波数計算のための定数
 (def FREQ-A4 440.0)  # A4 (オクターブ4のA音) の周波数（Hz）
@@ -189,8 +189,9 @@
         
         # 期間オブジェクトを作成して追加
         duration (create-note-duration seconds 
-                                      (state :current-octave) 
-                                      (NOTES-MAP note-name))
+                                     (state :current-octave) 
+                                     (NOTES-MAP note-name)
+                                     (state :tempo))
         new-durations (push (state :durations) duration)]
     
     # 更新された状態を返す
@@ -203,13 +204,13 @@
         [rest-length has-dot final-pos] (get-note-length-info mml-str (+ index 1) state)
         
         # 秒単位の長さを計算
-        seconds (calculate-note-length 
-                  (state :tempo) 
-                  rest-length 
+        seconds (calculate-note-length
+                  (state :tempo)
+                  rest-length
                   has-dot)
         
         # 休符期間オブジェクトを作成して追加
-        duration (create-rest-duration seconds)
+        duration (create-rest-duration seconds (state :tempo))
         new-durations (push (state :durations) duration)]
     
     # 更新された状態を返す
@@ -265,9 +266,9 @@
 (defn parse [mml-string]
   "MML文字列を解析して音楽シーケンス構造体を返す"
   (let [# 初期パース状態
-        initial-state {:tempo 120          # デフォルトのテンポ
-                       :current-octave 4   # デフォルトのオクターブ
+        initial-state {:current-octave 4   # デフォルトのオクターブ
                        :current-length 4   # デフォルトの音長（4分音符）
+                       :tempo 120          # デフォルトのテンポ
                        :durations []}      # パース結果の期間配列
         
         # 文字列を正規化
@@ -275,8 +276,7 @@
         
         # 文字列を処理して最終状態を取得
         final-state (process-string normalized-mml initial-state)]
-    
+
     # 音楽シーケンス構造体を作成して返す
     (music-sequence
-      (final-state :tempo)
       (final-state :durations))))

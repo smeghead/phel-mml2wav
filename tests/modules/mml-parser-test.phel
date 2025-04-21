@@ -12,20 +12,20 @@
 (deftest test-parse-tempo
   "テンポ設定のパースをテスト"
   (let [sequence (parse "t120")]
-    (is (= 120 (sequence :tempo)) "テンポが正しくパースされている")
     (is (= [] (sequence :durations)) "デュレーション配列は空")))
 
 (deftest test-parse-tempo-change
   "テンポ変更のパースをテスト"
   (let [sequence (parse "t120 c t160 d")]
-    (is (= 160 (sequence :tempo)) "最後に設定されたテンポが反映される")
-    (is (= 2 (count (sequence :durations))) "2つのノートがある")))
+    (is (= 2 (count (sequence :durations))) "2つのノートがある")
+    (is (= 120 (get-in sequence [:durations 0 :tempo])) "1つ目のノートはテンポ120")
+    (is (= 160 (get-in sequence [:durations 1 :tempo])) "2つ目のノートはテンポ160")))
 
 (deftest test-parse-octave
   "オクターブ設定のパースをテスト"
   (let [sequence (parse "o5 c")]
-    (is (= 120 (sequence :tempo)) "デフォルトテンポ")
     (is (= 1 (count (sequence :durations))) "1つのノート")
+    (is (= 120 (get-in sequence [:durations 0 :tempo])) "デフォルトテンポ")
     (let [note (get-in sequence [:durations 0 :note])]
       (is (= 5 (note :octave)) "オクターブが5に設定されている"))))
 
@@ -92,8 +92,8 @@
 (deftest test-parse-complex-example
   "複雑な例のパースをテスト"
   (let [sequence (parse "t120 o4 l8 c d e f g a b > c4")]
-    (is (= 120 (sequence :tempo)) "テンポは120")
     (is (= 8 (count (sequence :durations))) "8つのノート")
+    (is (= 120 (get-in sequence [:durations 0 :tempo])) "テンポは120")
     # 最後の音符はオクターブ5のcで、4分音符
     (let [last-note (get-in sequence [:durations 7 :note])
           last-duration (get-in sequence [:durations 7 :length])]
@@ -112,7 +112,6 @@
 (deftest test-parse-empty-string
   "空文字列のパースをテスト"
   (let [sequence (parse "")]
-    (is (= 120 (sequence :tempo)) "デフォルトテンポ")
     (is (= [] (sequence :durations)) "デュレーション配列は空")))
 
 (deftest test-parse-case-insensitive

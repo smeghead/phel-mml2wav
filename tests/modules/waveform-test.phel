@@ -59,7 +59,7 @@
   "音符から波形への変換をテスト"
   # A4音符（440Hz）の0.5秒間の波形を生成
   (let [note (parser/create-note 4 :a)
-        duration (parser/duration 0.5 note)
+        duration (parser/duration 0.5 note 120)
         wave (wf/note-to-wave duration TEST-SAMPLE-RATE)
         # サンプル数を確認
         sample-count (php/count wave)]
@@ -76,7 +76,7 @@
 (deftest rest-to-wave-test
   "休符から波形への変換をテスト"
   # 0.5秒間の休符
-  (let [duration (parser/duration 0.5 nil)
+  (let [duration (parser/duration 0.5 nil 120)
         wave (wf/note-to-wave duration TEST-SAMPLE-RATE)
         # サンプル数を確認
         sample-count (php/count wave)]
@@ -109,10 +109,10 @@
 (deftest music-sequence-to-waveform
   "音楽シーケンス全体から波形を生成するテスト"
   (let [# 簡単な音楽シーケンスを作成
-        duration1 (parser/create-note-duration 0.25 4 :c)  # C4を0.25秒
-        duration2 (parser/create-rest-duration 0.25)       # 0.25秒の休符
-        duration3 (parser/create-note-duration 0.25 4 :g)  # G4を0.25秒
-        music-seq (parser/music-sequence 120 [duration1 duration2 duration3])
+        duration1 (parser/create-note-duration 0.25 4 :c 120)  # C4を0.25秒、テンポ120.25秒、テンポ120
+        duration2 (parser/create-rest-duration 0.25 120)       # 0.25秒の休符、テンポ120秒の休符、テンポ120
+        duration3 (parser/create-note-duration 0.25 4 :g 120)  # G4を0.25秒、テンポ120.25秒、テンポ120
+        music-seq (parser/music-sequence [duration1 duration2 duration3])
         
         # 各音符の波形を生成して連結
         waves (for [duration :in (music-seq :durations)]
@@ -134,16 +134,16 @@
 (deftest calculate-samples-test
   "音符のサンプル数計算をテスト"
   # 0.5秒間の音符のサンプル数を計算
-  (let [duration (parser/duration 0.5 nil)
+  (let [duration (parser/duration 0.5 nil 120)
         samples (wf/calculate-note-samples duration TEST-SAMPLE-RATE)]
     
     # サンプル数は0.5秒分（サンプルレート×0.5）になるはず
     (is (= samples (php/intval (php/ceil (* TEST-SAMPLE-RATE 0.5))))))
   
   # シーケンス全体のサンプル数を計算
-  (let [duration1 (parser/create-note-duration 0.25 4 :c)  # C4を0.25秒
-        duration2 (parser/create-rest-duration 0.25)       # 0.25秒の休符
-        music-seq (parser/music-sequence 120 [duration1 duration2])
+  (let [duration1 (parser/create-note-duration 0.25 4 :c 120)  # C4を0.25秒.25秒、テンポ120
+        duration2 (parser/create-rest-duration 0.25 120)       # 0.25秒の休符秒の休符、テンポ120
+        music-seq (parser/music-sequence [duration1 duration2])
         total-samples (wf/calculate-total-samples music-seq TEST-SAMPLE-RATE)]
     
     # 合計サンプル数は0.5秒分になるはず
