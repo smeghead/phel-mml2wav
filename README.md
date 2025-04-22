@@ -77,7 +77,7 @@ echo 'T120 CDERCDERGEDCDED' | vendor/bin/phel -q run src/main.phel | play -t wav
 - Default implementation (simple sine wave):
   ```clojure
   (fn [freq t amp _idx _total _sr]
-    (* amp (sin (* 2 Math/PI freq t))))
+    (* amp (sin (* 2 php/M_PI freq t))))
   ```
 
 ### Effects chain (`effects`)
