@@ -19,16 +19,16 @@
 (deftest sin-wave-generation
   "基本的な正弦波生成をテスト"
   # 0度（0ラジアン）のsinは0
-  (is (approximately-equal? (wf/sin 0) 0.0))
+  (is (approximately-equal? (php/sin 0) 0.0))
   
   # 90度（π/2ラジアン）のsinは1
-  (is (approximately-equal? (wf/sin (/ php/M_PI 2)) 1.0))
+  (is (approximately-equal? (php/sin (/ php/M_PI 2)) 1.0))
   
   # 180度（πラジアン）のsinは0
-  (is (approximately-equal? (wf/sin php/M_PI) 0.0))
+  (is (approximately-equal? (php/sin php/M_PI) 0.0))
   
   # 270度（3π/2ラジアン）のsinは-1
-  (is (approximately-equal? (wf/sin (* 1.5 php/M_PI)) -1.0)))
+  (is (approximately-equal? (php/sin (* 1.5 php/M_PI)) -1.0)))
 
 # 特定の周波数と長さでの波形生成をテスト
 (deftest wave-generation

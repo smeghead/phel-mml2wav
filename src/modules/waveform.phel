@@ -6,11 +6,6 @@
 (def MAX-AMPLITUDE 32767)      # 16-bit PCM の最大振幅
 (def FADE-SAMPLES 100)         # フェードイン/アウトのサンプル数
 
-# Sin 波を生成する関数
-(defn sin [x]
-  "正弦波の値を計算する (x は角度をラジアンで表す)"
-  (php/sin x))
-
 # 特定の周波数と長さで波形を生成
 (defn generate-wave [frequency duration-sec amplitude sample-rate]
   "指定された周波数と長さの波形データ配列を生成"
@@ -24,7 +19,7 @@
         acc
         # Sin波を生成（時間 t における値）
         (let [t (/ i sample-rate)
-              sample-value (* amplitude (sin (* angular-frequency t)))]
+              sample-value (* amplitude (php/sin (* angular-frequency t)))]
           
           # フェードイン/アウト処理
           (let [fade-factor 1.0
