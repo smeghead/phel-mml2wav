@@ -7,38 +7,47 @@
 (def FADE-SAMPLES 100)         # フェードイン/アウトのサンプル数
 
 # 特定の周波数と長さで波形を生成
-(defn generate-wave [frequency duration-sec amplitude sample-rate]
+(defn generate-wave [frequency duration-sec amplitude sample-rate & [opts]]
   "指定された周波数と長さの波形データ配列を生成"
-  (let [sample-count (php/intval (php/ceil (* duration-sec sample-rate)))
-        angular-frequency (* 2 php/M_PI frequency)]
+  (let [opts         (or opts {})
+        # 新しいシグネチャ: (freq t amp idx total sample-rate) -> sample
+        sig-fn       (or (opts :osc-fn)
+                        (fn [freq t amp idx total sr]
+                          (* amp (php/sin (* 2 php/M_PI freq t)))))
+        effects      (opts :effects)
+        sample-count (php/intval (php/ceil (* duration-sec sample-rate)))]
     
     # 各サンプルの値を計算
-    (loop [i 0
-           acc []]
-      (if (>= i sample-count)
-        acc
-        # Sin波を生成（時間 t における値）
-        (let [t (/ i sample-rate)
-              sample-value (* amplitude (php/sin (* angular-frequency t)))]
-          
-          # フェードイン/アウト処理
-          (let [fade-factor 1.0
-                # フェードイン
-                fade-factor (if (< i FADE-SAMPLES)
-                              (* fade-factor (/ i FADE-SAMPLES))
-                              fade-factor)
-                # フェードアウト
-                fade-factor (if (> i (- sample-count FADE-SAMPLES))
-                              (* fade-factor (/ (- sample-count i) FADE-SAMPLES))
-                              fade-factor)
-                # フェード適用後の値
-                final-value (* sample-value fade-factor)]
-            
-            # 配列に追加
-            (recur (inc i) (push acc final-value))))))))
+    (let [raw-wave
+          (loop [i 0 acc []]
+            (if (>= i sample-count)
+              acc
+              # 新: sig-fn へ全パラメータを渡す
+              (let [t            (/ i sample-rate)
+                    sample-value  (sig-fn frequency t amplitude i sample-count sample-rate)]
+                
+                # フェードイン/アウト処理
+                (let [fade-factor 1.0
+                      # フェードイン
+                      fade-factor (if (< i FADE-SAMPLES)
+                                    (* fade-factor (/ i FADE-SAMPLES))
+                                    fade-factor)
+                      # フェードアウト
+                      fade-factor (if (> i (- sample-count FADE-SAMPLES))
+                                    (* fade-factor (/ (- sample-count i) FADE-SAMPLES))
+                                    fade-factor)
+                      # フェード適用後の値
+                      final-value (* sample-value fade-factor)]
+                  
+                  # 配列に追加
+                  (recur (inc i) (push acc final-value))))))]
+      # エフェクトチェイン（なければそのまま返す）
+      (if (nil? effects)
+        raw-wave
+        (reduce (fn [wf f] (f wf sample-rate)) raw-wave effects)))))
 
 # 音符から波形データを生成
-(defn note-to-wave [duration sample-rate]
+(defn note-to-wave [duration sample-rate & [opts]]
   "1つの音符または休符から波形データを生成"
   (let [length (duration :length)
         note (duration :note)]
@@ -51,7 +60,7 @@
         
       # 音符の場合は周波数を計算して波形を生成
       (let [frequency (parser/note-to-frequency note)]
-        (generate-wave frequency length 0.8 sample-rate)))))  # 振幅は0.8（最大値の80%）に設定
+        (generate-wave frequency length 0.8 sample-rate opts)))))  # 振幅は0.8（最大値の80%）に設定
 
 # 1つの音符のサンプル数を計算
 (defn calculate-note-samples [duration sample-rate]

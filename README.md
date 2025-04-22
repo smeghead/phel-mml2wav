@@ -59,6 +59,36 @@ echo 'T120 CDERCDERGEDCDED' | vendor/bin/phel -q run src/main.phel | play -t wav
 - Note length: `L<number>` (e.g., `L4` for quarter note)
 - Tempo: `T<number>` (e.g., `T120` for 120 BPM)
 
+## Advanced Options
+
+### Custom oscillator function (`sig-fn`)
+- Pass the `:osc-fn` option to `generate-wave` to override the default waveform generator.
+- The signature of the custom oscillator function is:
+  ```clojure
+  (fn [freq t amp idx total sample-rate] 
+    ... ) ;→ sample-value
+  ```
+  - `freq`: frequency in Hz  
+  - `t`: current time in seconds  
+  - `amp`: amplitude (0.0–1.0)  
+  - `idx`: current sample index (0 to total-1)  
+  - `total`: total number of samples  
+  - `sample-rate`: sampling rate in Hz  
+- Default implementation (simple sine wave):
+  ```clojure
+  (fn [freq t amp _idx _total _sr]
+    (* amp (sin (* 2 Math/PI freq t))))
+  ```
+
+### Effects chain (`effects`)
+- Pass the `:effects` option to `generate-wave` as a vector of functions to process the raw waveform.
+- Each effect function should have the signature:
+  ```clojure
+  (fn [waveform sample-rate] 
+    ... ) ;→ new-waveform
+  ```
+- You can chain effects such as delay, reverb, tremolo, or custom harmonic processing.
+
 ## About This Project
 
 This is an experimental project created for learning purposes. It demonstrates how to implement audio processing in Phel language, including:

@@ -4,7 +4,7 @@
   (:require mml2wav\modules\pcm :as pcm)
   (:require mml2wav\modules\wav :as wav))
 
-(defn process-mml-to-wav-stream [input-mml sample-rate output-stream]
+(defn process-mml-to-wav-stream [input-mml sample-rate output-stream & [opts]]
   "MMLから波形データを生成し、WAVファイルのバイナリデータをストリームに書き込む"
   (let [# MML文字列をパースして音符情報に変換
         notes (parser/parse input-mml)
@@ -17,8 +17,8 @@
     
     # 各音符を個別に処理して出力
     (foreach [duration (notes :durations)]
-      (let [# 音符から波形データを生成
-            note-samples (waveform/note-to-wave duration sample-rate)
+      (let [# 波形データ生成に opts を流す
+            note-samples (waveform/note-to-wave duration sample-rate opts)
             # 波形データをPCMに変換
             pcm-data (pcm/create-pcm-from-wave note-samples true)
             # PCMデータをバイナリに変換して出力

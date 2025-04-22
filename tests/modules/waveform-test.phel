@@ -148,3 +148,19 @@
     
     # 合計サンプル数は0.5秒分になるはず
     (is (= total-samples (php/intval (php/ceil (* TEST-SAMPLE-RATE 0.5)))))))
+
+(deftest custom-osc-fn-test
+  "opts で渡した sig-fn が利用されることをテスト"
+  (let [const-sig (fn [_freq _t _amp _idx _total _sr] 0.5)
+        wave      (wf/generate-wave 1.0 0.01 1.0 TEST-SAMPLE-RATE {:osc-fn const-sig})
+        mid-index (php/intval (/ (php/count wave) 2))]
+    (is (approximately-equal? (wave mid-index) 0.5))))
+
+(deftest effects-chain-test
+  "opts の effects チェインが適用されることをテスト"
+  (let [double-ef  (fn [wave _] (map (fn [s] (* 2 s)) wave))
+        one-sig    (fn [_freq _t _amp _idx _total _sr] 1.0)
+        wave       (wf/generate-wave 1.0 0.01 1.0 TEST-SAMPLE-RATE
+                                      {:osc-fn one-sig :effects [double-ef]})
+        mid-index  (php/intval (/ (php/count wave) 2))]
+    (is (approximately-equal? (wave mid-index) 2.0))))
