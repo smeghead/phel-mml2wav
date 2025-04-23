@@ -59,9 +59,44 @@ echo 'T120 CDERCDERGEDCDED' | vendor/bin/phel -q run src/main.phel | play -t wav
 - Note length: `L<number>` (e.g., `L4` for quarter note)
 - Tempo: `T<number>` (e.g., `T120` for 120 BPM)
 
+## Use as a library
+
+### example.phel
+
+```clojure
+(ns mml2wav\example
+  (:require mml2wav\converter :as converter))
+
+(println "start")
+
+# simple sin wave.
+(let [fp (php/fopen "example1.wav" "w")]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp)
+  (php/fclose fp))
+
+# sin wave containing overtones
+(let [fp (php/fopen "example2.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (+ (* amp (php/sin (* 2 php/M_PI freq t)))
+                         (* amp 0.5 (php/sin (* 2 2 php/M_PI freq t)))
+                         (* amp 0.3 (php/sin (* 3 2 php/M_PI freq t)))))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+(println "end")
+```
+
+### execute example.phel
+
+```bash
+$ vendor/bin/phel -q run src/example.phel
+```
+
+The above will output example1.wav and example2.wav.
+
 ## Advanced Options
 
-### Custom oscillator function (`sig-fn`)
+### Custom oscillator function (`osc-fn`)
 - Pass the `:osc-fn` option to `generate-wave` to override the default waveform generator.
 - The signature of the custom oscillator function is:
   ```clojure

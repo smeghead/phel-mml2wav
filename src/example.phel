@@ -1,0 +1,20 @@
+(ns mml2wav\example
+  (:require mml2wav\converter :as converter))
+
+(println "start")
+
+# simple sin wave.
+(let [fp (php/fopen "example1.wav" "w")]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp)
+  (php/fclose fp))
+
+# sin wave containing overtones
+(let [fp (php/fopen "example2.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (+ (* amp (php/sin (* 2 php/M_PI freq t)))
+                         (* amp 0.5 (php/sin (* 2 2 php/M_PI freq t)))
+                         (* amp 0.3 (php/sin (* 3 2 php/M_PI freq t)))))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+(println "end")

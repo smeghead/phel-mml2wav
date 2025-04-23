@@ -78,14 +78,6 @@
       (recur (rest durations) 
              (+ total (calculate-note-samples (first durations) sample-rate))))))
 
-## 次の関数は使われなくなりますが、互換性のために残しておきます
-#(defn generate-waveform [music-seq sample-rate]
-#  "音楽シーケンス全体から波形データ配列を生成"
-#  (let [waves (for [duration :in (music-seq :durations)]
-#                (note-to-wave duration sample-rate))]
-#    # 全波形を連結して1つの波形にする
-#    (apply concat waves)))
-
 # 波形を正規化して-1.0〜1.0の範囲に収める
 (defn normalize-waveform [waveform]
   "波形データを正規化して-1.0〜1.0の範囲に収める"
