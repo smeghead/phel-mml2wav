@@ -3,98 +3,98 @@
 
 (println "start")
 
-## simple sin wave.
-#(let [fp (php/fopen "example1.wav" "w")]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp)
-#  (php/fclose fp))
-#
-## sin wave containing overtones
-#(let [fp (php/fopen "example2.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (+ (* amp (php/sin (* 2 php/M_PI freq t)))
-#                         (* amp 0.5 (php/sin (* 2 2 php/M_PI freq t)))
-#                         (* amp 0.3 (php/sin (* 3 2 php/M_PI freq t)))))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## square wave
-#(let [fp (php/fopen "example_square_wave.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (if (> (php/sin (* 2 php/M_PI freq t)) 0)
-#                        amp
-#                        (- amp)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## saw wave
-#(let [fp (php/fopen "example_saw_wave.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (let [period (/ 1 freq)
-#                            pos-in-period (php/fmod t period)
-#                            norm-pos (/ pos-in-period period)  # 0〜1
-#                            saw-value (- (* 2 norm-pos) 1)]    # -1〜+1 にスケーリング
-#                        (* amp saw-value)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## triangle wave
-#(let [fp (php/fopen "example_triangle_wave.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (let [period (/ 1 freq)
-#                            pos-in-period (php/fmod t period)
-#                            norm-pos (/ pos-in-period period)  # 0〜1
-#                            tri-value (cond
-#                                        (< norm-pos 0.25) (* 4 norm-pos)
-#                                        (< norm-pos 0.75) (- 2 (* 4 norm-pos))
-#                                        :else              (- 4 (- norm-pos 1)))]
-#                        (* amp tri-value)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## white noise
-#(let [fp (php/fopen "example_noise_wave.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (* amp (- (php/mt_rand 0 2000) 1000) 0.001))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## blend sin and noise
-#(let [fp (php/fopen "example_blend_sin_noise.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (let [sin-part   (* 0.8 amp (php/sin (* 2 php/M_PI freq t)))
-#                            noise-part (* 0.2 amp (- (php/mt_rand 0 2000) 1000) 0.001)]
-#                        (+ sin-part noise-part)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## triangle with am sin
-#(let [fp (php/fopen "example_triangle_with_am_sin.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (let [period (/ 1 freq)
-#                            pos-in-period (php/fmod t period)
-#                            norm-pos (/ pos-in-period period)
-#                            tri-val (cond
-#                                      (< norm-pos 0.25) (* 4 norm-pos)
-#                                      (< norm-pos 0.75) (- 2 (* 4 norm-pos))
-#                                      :else              (- 4 (- norm-pos 1)))
-#                            mod-freq 2   # 揺らしの速さ（Hz）
-#                            mod-depth 0.5 # 揺らしの深さ（0〜1）
-#                            mod-val (+ 1 (* mod-depth (php/sin (* 2 php/M_PI mod-freq t))))] # 1 ± depth
-#                        (* amp tri-val mod-val)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
-#
-## fm sin mod
-#(let [fp (php/fopen "example_fm_sin_mod.wav" "w")
-#      opts {:osc-fn (fn [freq t amp idx total sr]
-#                      (let [mod-freq  8       # モジュレータの周波数（Hz）
-#                            mod-depth 3     # モジュレータの深さ（Hz変化幅）
-#                            modulator (* mod-depth (php/sin (* 2 php/M_PI mod-freq t)))
-#                            current-freq (+ freq modulator)  # 周波数を揺らす！
-#                            val (php/sin (* 2 php/M_PI current-freq t))]
-#                        (* amp val)))}]
-#  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
-#  (php/fclose fp))
+# simple sin wave.
+(let [fp (php/fopen "example1.wav" "w")]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp)
+  (php/fclose fp))
+
+# sin wave containing overtones
+(let [fp (php/fopen "example2.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (+ (* amp (php/sin (* 2 php/M_PI freq t)))
+                         (* amp 0.5 (php/sin (* 2 2 php/M_PI freq t)))
+                         (* amp 0.3 (php/sin (* 3 2 php/M_PI freq t)))))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# square wave
+(let [fp (php/fopen "example_square_wave.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (if (> (php/sin (* 2 php/M_PI freq t)) 0)
+                        amp
+                        (- amp)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# saw wave
+(let [fp (php/fopen "example_saw_wave.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (let [period (/ 1 freq)
+                            pos-in-period (php/fmod t period)
+                            norm-pos (/ pos-in-period period)  # 0〜1
+                            saw-value (- (* 2 norm-pos) 1)]    # -1〜+1 にスケーリング
+                        (* amp saw-value)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# triangle wave
+(let [fp (php/fopen "example_triangle_wave.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (let [period (/ 1 freq)
+                            pos-in-period (php/fmod t period)
+                            norm-pos (/ pos-in-period period)  # 0〜1
+                            tri-value (cond
+                                        (< norm-pos 0.25) (* 4 norm-pos)
+                                        (< norm-pos 0.75) (- 2 (* 4 norm-pos))
+                                        :else              (- 4 (- norm-pos 1)))]
+                        (* amp tri-value)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# white noise
+(let [fp (php/fopen "example_noise_wave.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (* amp (- (php/mt_rand 0 2000) 1000) 0.001))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# blend sin and noise
+(let [fp (php/fopen "example_blend_sin_noise.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (let [sin-part   (* 0.8 amp (php/sin (* 2 php/M_PI freq t)))
+                            noise-part (* 0.2 amp (- (php/mt_rand 0 2000) 1000) 0.001)]
+                        (+ sin-part noise-part)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# triangle with am sin
+(let [fp (php/fopen "example_triangle_with_am_sin.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (let [period (/ 1 freq)
+                            pos-in-period (php/fmod t period)
+                            norm-pos (/ pos-in-period period)
+                            tri-val (cond
+                                      (< norm-pos 0.25) (* 4 norm-pos)
+                                      (< norm-pos 0.75) (- 2 (* 4 norm-pos))
+                                      :else              (- 4 (- norm-pos 1)))
+                            mod-freq 2   # 揺らしの速さ（Hz）
+                            mod-depth 0.5 # 揺らしの深さ（0〜1）
+                            mod-val (+ 1 (* mod-depth (php/sin (* 2 php/M_PI mod-freq t))))] # 1 ± depth
+                        (* amp tri-val mod-val)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
+
+# fm sin mod
+(let [fp (php/fopen "example_fm_sin_mod.wav" "w")
+      opts {:osc-fn (fn [freq t amp idx total sr]
+                      (let [mod-freq  8       # モジュレータの周波数（Hz）
+                            mod-depth 3     # モジュレータの深さ（Hz変化幅）
+                            modulator (* mod-depth (php/sin (* 2 php/M_PI mod-freq t)))
+                            current-freq (+ freq modulator)  # 周波数を揺らす！
+                            val (php/sin (* 2 php/M_PI current-freq t))]
+                        (* amp val)))}]
+  (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
+  (php/fclose fp))
 
 
 (let [fp (php/fopen "example_sweet_child_intro.wav" "w")
