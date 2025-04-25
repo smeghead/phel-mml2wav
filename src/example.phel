@@ -105,7 +105,7 @@
                   (* amp 0.2 (php/sin (* 2 php/M_PI (* 4 freq) t)))))
       # ディストーション：サンプルごとに sr を受け取るように修正
       distortion (fn [wave sr]
-                   (map (fn [x] (php/tanh (* 4 x))) wave))
+                   (map |(php/tanh (* 4 $)) wave))
       opts {:osc-fn osc-fn
             :effects [distortion]}]
 
