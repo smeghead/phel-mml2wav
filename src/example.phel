@@ -96,24 +96,19 @@
   (converter/process-mml-to-wav-stream "T120 CDE" 44100 fp opts)
   (php/fclose fp))
 
-
 (let [fp (php/fopen "example_sweet_child_intro.wav" "w")
       mml "T120 O4 L8 D->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A E->D-<AG>G<A>F+<A E->D-<AG>G<A>F+<A G->D-<AG>G<A>F+<A G->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A"
-      opts {:osc-fn (fn [freq t amp idx total sr]
-                      (let [attack 0.02                      # アタック時間
-                            decay  0.2                       # 減衰時間
-                            env (cond
-                                   (< t attack)             (/ t attack)
-                                   (< t (+ attack decay))   (- 1 (* 0.5 (/ (- t attack) decay)))
-                                   :else                    0.5)
-                            # 基本波＋倍音
-                            base (+ (* 1.0 (php/sin (* 2 php/M_PI freq t)))
-                                     (* 0.6 (php/sin (* 2 php/M_PI (* 2 freq) t)))
-                                     (* 0.4 (php/sin (* 2 php/M_PI (* 3 freq) t)))
-                                     (* 0.2 (php/sin (* 2 php/M_PI (* 4 freq) t))))
-                            # 歪ませる
-                            distorted (php/tanh (* 2 base))]
-                        (* amp env distorted)))}]
+      osc-fn (fn [freq t amp idx total sr]
+               (+ (* amp 1.0 (php/sin (* 2 php/M_PI freq t)))
+                  (* amp 0.6 (php/sin (* 2 php/M_PI (* 2 freq) t)))
+                  (* amp 0.4 (php/sin (* 2 php/M_PI (* 3 freq) t)))
+                  (* amp 0.2 (php/sin (* 2 php/M_PI (* 4 freq) t)))))
+      # ディストーション：サンプルごとに sr を受け取るように修正
+      distortion (fn [wave sr]
+                   (map (fn [x] (php/tanh (* 4 x))) wave))
+      opts {:osc-fn osc-fn
+            :effects [distortion]}]
+
   (converter/process-mml-to-wav-stream mml 44100 fp opts)
   (php/fclose fp))
 
