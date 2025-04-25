@@ -99,13 +99,13 @@
 (let [fp (php/fopen "example_sweet_child_intro.wav" "w")
       mml "T120 O4 L8 D->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A E->D-<AG>G<A>F+<A E->D-<AG>G<A>F+<A G->D-<AG>G<A>F+<A G->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A D->D-<AG>G<A>F+<A"
       osc-fn (fn [freq t amp idx total sr]
-               (+ (* amp 1.0 (php/sin (* 2 php/M_PI freq t)))
-                  (* amp 0.6 (php/sin (* 2 php/M_PI (* 2 freq) t)))
-                  (* amp 0.4 (php/sin (* 2 php/M_PI (* 3 freq) t)))
-                  (* amp 0.2 (php/sin (* 2 php/M_PI (* 4 freq) t)))))
+               (+ (* amp 0.8 (php/sin (* 2 php/M_PI freq t)))
+                  (* amp 0.5 (php/sin (* 2 php/M_PI (* 2 freq) t)))
+                  (* amp 0.3 (php/sin (* 2 php/M_PI (* 3 freq) t)))
+                  (* amp 0.1 (php/sin (* 2 php/M_PI (* 4 freq) t)))))
       # ディストーション：サンプルごとに sr を受け取るように修正
       distortion (fn [wave sr]
-                   (map |(php/tanh (* 4 $)) wave))
+                   (map |(* 0.4 (php/tanh (* 4 $))) wave))
       opts {:osc-fn osc-fn
             :effects [distortion]}]
 

@@ -60,7 +60,7 @@
         
       # 音符の場合は周波数を計算して波形を生成
       (let [frequency (parser/note-to-frequency note)]
-        (generate-wave frequency length 0.8 sample-rate opts)))))  # 振幅は0.8（最大値の80%）に設定
+        (generate-wave frequency length 0.7 sample-rate opts)))))  # 振幅は0.7（最大値の70%）に設定
 
 # 1つの音符のサンプル数を計算
 (defn calculate-note-samples [duration sample-rate]
